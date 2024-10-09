@@ -6,20 +6,13 @@ using Newtonsoft.Json;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
-using System.Xml;
+using BooksSearchSystem.Models;
 
 namespace WebApplicationTest
 {
     public class BooksCrawler
     {
-
-        //static async Task Main(string[] args)
-        //{
-        //    string jsonData = await booksInfo("0010764130");
-        //    Console.WriteLine(jsonData);
-        //}
-
-        public  async Task<string> booksInfo(string num)
+        public async Task<Book> GetBookInfo(string num)
         {
             string url = $"https://www.books.com.tw/products/{num}?sloc=main";
 
@@ -30,42 +23,25 @@ namespace WebApplicationTest
             var htmlDocument = new HtmlDocument();
             htmlDocument.LoadHtml(response);
 
-            var bookInfo = new Dictionary<string, string>();
-            var detailInfo = new Dictionary<string, string>();
+            // 用來儲存解析出來的書籍資訊
+            var book = new Book();
 
-            var imgTag = htmlDocument.DocumentNode.SelectSingleNode("//img[@class='cover']");
-            if (imgTag != null)
-            {
-                bookInfo["image"] = imgTag.GetAttributeValue("src", "");
-            }
-
+            // 獲取標題
             var titleTag = htmlDocument.DocumentNode.SelectSingleNode("//div[@class='mod type02_p002 clearfix']");
             if (titleTag != null)
             {
-                bookInfo["title"] = titleTag.InnerText.Trim();
+                book.Title = titleTag.InnerText.Trim();
             }
 
+            // 獲取作者
             var authorTag = htmlDocument.DocumentNode.SelectSingleNode("//div[@class='type02_p003 clearfix']");
             if (authorTag != null)
             {
                 string author = Regex.Replace(authorTag.InnerText, @"\s+", " ").Trim();
-                author = author.Replace(" 新功能介紹", "").Replace("已追蹤作者： [ 修改 ] 確定 取消", "");
-                bookInfo["author"] = author;
+                book.Author = author.Replace(" 新功能介紹", "").Replace("已追蹤作者： [ 修改 ] 確定 取消", "");
             }
 
-            var priceTag = htmlDocument.DocumentNode.SelectSingleNode("//ul[@class='price']");
-            if (priceTag != null)
-            {
-                bookInfo["price"] = priceTag.InnerText.Trim();
-            }
-
-            var authorInfoTag = htmlDocument.DocumentNode.SelectSingleNode("//div[@class='mod_b type02_m057 clearfix']");
-            if (authorInfoTag != null)
-            {
-                string authorInfo = Regex.Replace(authorInfoTag.InnerText, @"\s+", " ").Trim().Replace("看更多", "");
-                bookInfo["OTHER_INFO"] = authorInfo;
-            }
-
+            // 獲取ISBN
             var infoTags = htmlDocument.DocumentNode.SelectNodes("//div[@class='bd']");
             if (infoTags != null)
             {
@@ -78,32 +54,24 @@ namespace WebApplicationTest
                         {
                             string infoText = Regex.Replace(item.InnerText, @"\s+", "");
                             var keyValue = infoText.Split('：');
-                            if (keyValue.Length == 2)
+                            if (keyValue.Length == 2 && keyValue[0].Contains("ISBN"))
                             {
-                                detailInfo[keyValue[0]] = keyValue[1];
+                                book.Isbn = keyValue[1]; // 保存ISBN
                             }
                         }
                     }
                 }
             }
 
-            string isbn = "";
-            if (detailInfo.ContainsKey("ISBN"))
+            // 獲取出版商
+            var publisherTag = htmlDocument.DocumentNode.SelectSingleNode("//div[@class='type02_p003 clearfix']");
+            if (publisherTag != null)
             {
-                isbn = detailInfo["ISBN"];
-                detailInfo.Remove("ISBN");
+                book.Publisher = publisherTag.InnerText.Trim();
             }
 
-            var result = new
-            {
-                ISBN = isbn,
-                book_info = bookInfo,
-                detail_info = detailInfo
-            };
-
-            return JsonConvert.SerializeObject(result, Newtonsoft.Json.Formatting.Indented);
+            // 返回書籍實例
+            return book;
         }
     }
-
 }
-
